@@ -4,7 +4,8 @@ import { renderList, renderMonth } from './views.js';
 import * as push from './push.js';
 
 const demo = !config.supabaseUrl;
-const pushOn = !demo && Boolean(config.vapidPublicKey);
+// The button check covers a browser that still holds an older copy of the page.
+const pushOn = !demo && Boolean(config.vapidPublicKey) && Boolean(document.getElementById('push-toggle'));
 const backend = await import(demo ? './backend-demo.js' : './backend-supabase.js');
 
 const $ = (id) => document.getElementById(id);
@@ -176,7 +177,7 @@ $('logout').addEventListener('click', () => run(async () => {
   showLogin();
 }));
 
-$('push-toggle').addEventListener('click', () => run(async () => {
+$('push-toggle')?.addEventListener('click', () => run(async () => {
   if ($('push-toggle').dataset.on === 'true') {
     const sub = await push.disable();
     if (sub) await backend.deletePushSubscription(sub.endpoint);
