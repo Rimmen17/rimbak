@@ -73,6 +73,19 @@ export async function deleteEvent(id) {
   check(await sb.from('events').delete().eq('id', id));
 }
 
+// The database attaches the subscription to whoever is logged in on this device.
+export async function savePushSubscription(sub) {
+  check(await sb.rpc('save_push_subscription', {
+    p_endpoint: sub.endpoint,
+    p_p256dh: sub.keys.p256dh,
+    p_auth: sub.keys.auth,
+  }));
+}
+
+export async function deletePushSubscription(endpoint) {
+  check(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint));
+}
+
 export async function setResponse(eventId, status, note) {
   const { data } = await sb.auth.getUser();
   check(await sb.from('responses').upsert({

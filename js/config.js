@@ -8,4 +8,7 @@ export const config = {
   // Logins are by name. Supabase needs an email, so "Joan" signs in as joan@<loginDomain>.
   // The accounts were created with this domain: changing it locks everyone out.
   loginDomain: 'familiekalender.example',
+  // Public half of the key pair that signs notifications. The private half is
+  // only in Supabase (Edge Functions, Secrets). Empty turns notifications off.
+  vapidPublicKey: 'BOjQrTDBIC5HGOl-WKiho32GRPvRh1GUo6PZngF1QKzeV2fRXMLB9YEeOoOReLL2oJAfY7hUC5ib_NSB8YjWxEY',
 };

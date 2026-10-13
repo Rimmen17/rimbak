@@ -100,3 +100,134 @@ create policy "own response delete" on public.responses
 -- After creating the accounts (Authentication, Users, "Add user", auto confirm),
 -- make one of them the admin:
 --   update public.profiles set is_admin = true where name = 'Christian';
+
+-- Notifications (web push). The sending is done by the function in
+-- supabase/functions/notify; this part stores each device's subscription,
+-- remembers what has been sent, and calls the function.
+
+create table public.push_subscriptions (
+  endpoint text primary key check (
+    char_length(endpoint) <= 1000
+    -- Only the browsers' own push services, so the function never posts anywhere else.
+    and endpoint ~ '^https://[a-z0-9.-]+\.(push\.apple\.com|googleapis\.com|mozilla\.com|notify\.windows\.com)/'
+  ),
+  user_id uuid not null references public.profiles on delete cascade,
+  p256dh text not null check (char_length(p256dh) <= 200),
+  auth text not null check (char_length(auth) <= 100),
+  created_at timestamptz not null default now()
+);
+
+alter table public.push_subscriptions enable row level security;
+revoke all on public.push_subscriptions from anon;
+grant select, delete on public.push_subscriptions to authenticated;
+
+-- Subscriptions: each person sees and removes only their own.
+create policy "own subscription read" on public.push_subscriptions
+  for select to authenticated using (user_id = auth.uid());
+create policy "own subscription delete" on public.push_subscriptions
+  for delete to authenticated using (user_id = auth.uid());
+
+-- Saving goes through this function, so a device that changes hands follows
+-- whoever is logged in on it now.
+create function public.save_push_subscription(p_endpoint text, p_p256dh text, p_auth text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    raise exception 'not logged in';
+  end if;
+  insert into public.push_subscriptions (endpoint, user_id, p256dh, auth)
+  values (p_endpoint, auth.uid(), p_p256dh, p_auth)
+  on conflict (endpoint) do update
+    set user_id = excluded.user_id, p256dh = excluded.p256dh, auth = excluded.auth;
+end;
+$$;
+
+revoke execute on function public.save_push_subscription(text, text, text) from public, anon;
+grant execute on function public.save_push_subscription(text, text, text) to authenticated;
+
+-- When each event was announced and when its reminder went out.
+alter table public.events
+  add column announced_at timestamptz,
+  add column reminded_at timestamptz;
+
+-- Events that existed before notifications are not announced after the fact.
+update public.events set announced_at = now() where announced_at is null;
+
+-- A moved event gets its reminder again.
+create function public.rearm_reminder()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.starts_at is distinct from old.starts_at then
+    new.reminded_at := null;
+  end if;
+  return new;
+end;
+$$;
+
+create trigger events_rearm_reminder
+  before update on public.events
+  for each row execute function public.rearm_reminder();
+
+-- The sending function reads and writes with the service role.
+grant select on public.profiles to service_role;
+grant select, update on public.events to service_role;
+grant select, delete on public.push_subscriptions to service_role;
+
+create extension if not exists pg_net;
+create extension if not exists pg_cron;
+
+-- Wakes the sending function. It takes no input and decides from the tables
+-- what is due, so calling it too often sends nothing extra.
+-- The function only answers a call that carries one of the project's keys.
+-- Store the legacy anon key (Project Settings, API Keys, Legacy) once, by hand:
+--   select vault.create_secret('<anon key>', 'notify_jwt');
+create function public.post_notify()
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  key text;
+begin
+  select decrypted_secret into key from vault.decrypted_secrets where name = 'notify_jwt';
+  perform net.http_post(
+    url := 'https://qyuinwidetufdyrjcjba.supabase.co/functions/v1/notify',
+    body := '{}'::jsonb,
+    headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || key)
+  );
+end;
+$$;
+
+revoke execute on function public.post_notify() from public, anon, authenticated;
+
+create function public.call_notify()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  perform public.post_notify();
+  return null;
+exception when others then
+  -- A new event is never refused because the notification could not be queued.
+  return null;
+end;
+$$;
+
+revoke execute on function public.call_notify() from public, anon, authenticated;
+
+create trigger events_announce
+  after insert on public.events
+  for each statement execute function public.call_notify();
+
+-- Every ten minutes for the reminders (and any announcement the trigger missed).
+select cron.schedule('rimbak-notify', '*/10 * * * *', 'select public.post_notify()');

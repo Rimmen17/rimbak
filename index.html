@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="robots" content="noindex, nofollow">
   <title>Rimbak</title>
-  <link rel="icon" href="data:,">
+  <meta name="theme-color" content="#2f5d50">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -35,6 +38,11 @@
         <button type="button" id="logout" class="link">Log ud</button>
       </div>
     </header>
+
+    <p id="push-row" class="push" hidden>
+      <button type="button" id="push-toggle" class="link" hidden></button>
+      <span id="push-hint" hidden></span>
+    </p>
 
     <nav class="toolbar">
       <div class="tabs" role="tablist">

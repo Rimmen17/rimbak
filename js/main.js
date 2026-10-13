@@ -1,8 +1,10 @@
 import { config } from './config.js';
 import * as dates from './dates.js';
 import { renderList, renderMonth } from './views.js';
+import * as push from './push.js';
 
 const demo = !config.supabaseUrl;
+const pushOn = !demo && Boolean(config.vapidPublicKey);
 const backend = await import(demo ? './backend-demo.js' : './backend-supabase.js');
 
 const $ = (id) => document.getElementById(id);
@@ -80,6 +82,34 @@ const handlers = {
   }),
 };
 
+// Shows the notification switch, or why it is not there.
+async function renderPush() {
+  if (!pushOn) return;
+  const toggle = $('push-toggle');
+  const hint = $('push-hint');
+  const on = Boolean(await push.current());
+  toggle.hidden = !push.supported() || push.blocked();
+  toggle.textContent = on ? 'Notifikationer er slået til (slå fra)' : 'Slå notifikationer til';
+  toggle.dataset.on = String(on);
+  hint.textContent = push.blocked()
+    ? 'Notifikationer er blokeret for Rimbak i enhedens indstillinger.'
+    : 'Vil du have notifikationer? Tryk på Del, vælg "Føj til hjemmeskærm", og åbn Rimbak derfra.';
+  hint.hidden = !push.blocked() && !push.needsHomeScreen();
+  $('push-row').hidden = toggle.hidden && hint.hidden;
+}
+
+// A device that already has a subscription follows whoever is logged in on it.
+async function syncPush() {
+  if (!pushOn) return;
+  try {
+    const sub = await push.current();
+    if (sub) await backend.savePushSubscription(sub.toJSON());
+  } catch (err) {
+    console.error(err);
+  }
+  await renderPush();
+}
+
 function showLogin() {
   state.user = null;
   state.view = 'list';
@@ -97,6 +127,7 @@ async function showMain() {
   $('main-view').hidden = false;
   $('user-name').textContent = state.user.name;
   await refresh();
+  await syncPush();
 }
 
 function openDialog(ev) {
@@ -133,8 +164,27 @@ $('login-form').addEventListener('submit', async (e) => {
 });
 
 $('logout').addEventListener('click', () => run(async () => {
+  // A logged-out device gets nothing; logging in again picks the subscription back up.
+  // Never blocks the logout itself.
+  try {
+    const sub = pushOn ? await push.current() : null;
+    if (sub) await backend.deletePushSubscription(sub.endpoint);
+  } catch (err) {
+    console.error(err);
+  }
   await backend.signOut();
   showLogin();
+}));
+
+$('push-toggle').addEventListener('click', () => run(async () => {
+  if ($('push-toggle').dataset.on === 'true') {
+    const sub = await push.disable();
+    if (sub) await backend.deletePushSubscription(sub.endpoint);
+  } else {
+    const sub = await push.enable(config.vapidPublicKey);
+    await backend.savePushSubscription(sub.toJSON());
+  }
+  await renderPush();
 }));
 
 $('tab-list').addEventListener('click', () => run(async () => {
@@ -179,6 +229,8 @@ $('event-form').addEventListener('submit', async (e) => {
 
 await run(async () => {
   await backend.init(config);
+  // The calendar must work even where the notification part cannot start.
+  if (pushOn) await push.init().catch((err) => console.error(err));
   state.user = await backend.getSession();
   if (state.user) await showMain();
   else showLogin();

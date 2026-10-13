@@ -86,6 +86,7 @@ input, textarea {
 /* Header and toolbar */
 .top { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .who { display: flex; align-items: baseline; gap: 8px; color: var(--muted); white-space: nowrap; }
+.push { margin: -8px 0 16px; font-size: 0.9rem; color: var(--muted); }
 .toolbar { display: flex; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .tabs { display: inline-flex; border: 1px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); }
 .tabs button { border: 0; border-radius: 0; background: none; }
