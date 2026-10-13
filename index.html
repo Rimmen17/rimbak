@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="da">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Familiekalender</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <p id="status" class="status" role="status" hidden></p>
+
+  <section id="login-view" class="login" hidden>
+    <h1>Familiekalender</h1>
+    <p class="lede">Log ind for at se, hvad der sker, og svare på, om du kommer.</p>
+    <p id="demo-banner" class="demo" hidden>Demo uden database: log ind som Admin, Mor, Far eller Bror med adgangskoden demo123.</p>
+    <form id="login-form" autocomplete="on">
+      <label>Navn
+        <input id="login-name" name="username" type="text" autocomplete="username" autocapitalize="words" required maxlength="40">
+      </label>
+      <label>Adgangskode
+        <input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="72">
+      </label>
+      <p id="login-error" class="error" role="alert" hidden></p>
+      <button type="submit" class="primary">Log ind</button>
+    </form>
+  </section>
+
+  <section id="main-view" hidden>
+    <header class="top">
+      <h1>Familiekalender</h1>
+      <div class="who">
+        <span id="user-name"></span>
+        <button type="button" id="logout" class="link">Log ud</button>
+      </div>
+    </header>
+
+    <nav class="toolbar">
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tab-list" aria-selected="true">Liste</button>
+        <button type="button" role="tab" id="tab-month" aria-selected="false">Måned</button>
+      </div>
+      <button type="button" id="new-event" class="primary" hidden>Ny begivenhed</button>
+    </nav>
+
+    <div id="month" hidden></div>
+    <div id="list"></div>
+  </section>
+
+  <dialog id="event-dialog">
+    <form id="event-form" method="dialog">
+      <h2 id="dialog-title">Ny begivenhed</h2>
+      <label>Titel
+        <input name="title" type="text" required maxlength="80">
+      </label>
+      <label>Dato
+        <input name="date" type="date" required>
+      </label>
+      <div class="row">
+        <label>Start
+          <input name="start" type="time" required>
+        </label>
+        <label>Slut (valgfri)
+          <input name="end" type="time">
+        </label>
+      </div>
+      <label>Sted (valgfri)
+        <input name="location" type="text" maxlength="80">
+      </label>
+      <label>Beskrivelse (valgfri)
+        <textarea name="description" rows="3" maxlength="500"></textarea>
+      </label>
+      <p id="event-error" class="error" role="alert" hidden></p>
+      <div class="actions">
+        <button type="button" id="event-cancel">Annuller</button>
+        <button type="submit" class="primary">Gem</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
