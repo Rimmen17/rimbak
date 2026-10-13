@@ -96,7 +96,6 @@ async function showMain() {
   $('login-view').hidden = true;
   $('main-view').hidden = false;
   $('user-name').textContent = state.user.name;
-  $('new-event').hidden = !state.user.isAdmin;
   await refresh();
 }
 

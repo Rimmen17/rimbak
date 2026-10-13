@@ -21,8 +21,8 @@ function seed() {
   return {
     session: null,
     events: [
-      { id: 'e-1', title: 'Familiemiddag', description: 'Vi laver lasagne.', location: 'Hos mor og far', startsAt: at(3, 18), endsAt: at(3, 21) },
-      { id: 'e-2', title: 'Fødselsdag', description: '', location: '', startsAt: at(10, 14), endsAt: null },
+      { id: 'e-1', title: 'Familiemiddag', description: 'Vi laver lasagne.', location: 'Hos mor og far', startsAt: at(3, 18), endsAt: at(3, 21), createdBy: 'u-mor' },
+      { id: 'e-2', title: 'Fødselsdag', description: '', location: '', startsAt: at(10, 14), endsAt: null, createdBy: 'u-admin' },
     ],
     responses: [
       { eventId: 'e-1', userId: 'u-mor', status: 'joining', note: '' },
@@ -84,17 +84,27 @@ export async function listResponses(eventIds) {
   return load().responses.filter((r) => eventIds.includes(r.eventId));
 }
 
+// Same rule as the database: the creator or the admin.
+function mayChange(db, id) {
+  const user = current(db);
+  const existing = db.events.find((e) => e.id === id);
+  if (existing && !user.isAdmin && existing.createdBy !== user.id) {
+    throw new Error('Du kan kun ændre dine egne begivenheder');
+  }
+  return { user, existing };
+}
+
 export async function saveEvent(ev) {
   const db = load();
-  if (!current(db).isAdmin) throw new Error('Kun administratoren kan ændre begivenheder');
-  const row = { ...ev, id: ev.id || crypto.randomUUID() };
+  const { user, existing } = mayChange(db, ev.id);
+  const row = { ...ev, id: ev.id || crypto.randomUUID(), createdBy: existing?.createdBy ?? user.id };
   db.events = db.events.filter((e) => e.id !== row.id).concat(row);
   save(db);
 }
 
 export async function deleteEvent(id) {
   const db = load();
-  if (!current(db).isAdmin) throw new Error('Kun administratoren kan ændre begivenheder');
+  mayChange(db, id);
   db.events = db.events.filter((e) => e.id !== id);
   db.responses = db.responses.filter((r) => r.eventId !== id);
   save(db);

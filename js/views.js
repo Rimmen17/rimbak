@@ -72,6 +72,8 @@ function eventCard(ev, state, h) {
   noteInput.addEventListener('change', () => h.onAnswer(ev.id, mine.status, noteInput.value.trim()));
 
   const where = [dates.formatRange(ev.startsAt, ev.endsAt), ev.location].filter(Boolean).join(' · ');
+  const creator = state.profiles.find((p) => p.id === ev.createdBy)?.name;
+  const mayChange = state.user.isAdmin || ev.createdBy === state.user.id;
   return el('article', { class: 'event', id: `event-${ev.id}` },
     el('div', { class: 'date', 'aria-hidden': 'true' },
       el('span', { class: 'wd', text: parts.weekday }),
@@ -84,7 +86,8 @@ function eventCard(ev, state, h) {
       answerButtons(ev, mine, noteInput, h),
       noteInput,
       answerSummary(ev, state),
-      state.user.isAdmin && adminButtons(ev, h)));
+      creator && el('p', { class: 'creator', text: `Oprettet af ${creator}` }),
+      mayChange && adminButtons(ev, h)));
 }
 
 export function renderList(container, state, h) {

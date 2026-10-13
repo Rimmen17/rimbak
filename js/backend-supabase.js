@@ -48,6 +48,7 @@ export async function listEvents(fromIso) {
     location: e.location,
     startsAt: e.starts_at,
     endsAt: e.ends_at,
+    createdBy: e.created_by,
   }));
 }
 

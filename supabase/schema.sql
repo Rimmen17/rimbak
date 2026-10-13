@@ -74,15 +74,18 @@ grant select, insert, update, delete on public.events, public.responses to authe
 create policy "family reads profiles" on public.profiles
   for select to authenticated using (true);
 
--- Events: everyone logged in reads, only the admin writes.
+-- Events: everyone logged in reads and may add their own;
+-- only the creator or the admin may edit or delete one.
 create policy "family reads events" on public.events
   for select to authenticated using (true);
-create policy "admin adds events" on public.events
-  for insert to authenticated with check (public.is_admin());
-create policy "admin edits events" on public.events
-  for update to authenticated using (public.is_admin()) with check (public.is_admin());
-create policy "admin deletes events" on public.events
-  for delete to authenticated using (public.is_admin());
+create policy "family adds events" on public.events
+  for insert to authenticated with check (created_by = auth.uid());
+create policy "creator or admin edits events" on public.events
+  for update to authenticated
+  using (public.is_admin() or created_by = auth.uid())
+  with check (public.is_admin() or created_by = auth.uid());
+create policy "creator or admin deletes events" on public.events
+  for delete to authenticated using (public.is_admin() or created_by = auth.uid());
 
 -- Responses: everyone logged in reads, each person writes only their own.
 create policy "family reads responses" on public.responses

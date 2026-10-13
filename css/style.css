@@ -130,7 +130,8 @@ input, textarea {
 .group.late .group-label { color: var(--late); }
 .group.not_joining .group-label { color: var(--no); }
 .person em { color: var(--muted); }
-.admin { display: flex; gap: 16px; margin-top: 8px; }
+.creator { margin: 8px 0 0; font-size: 0.85rem; color: var(--muted); }
+.admin { display: flex; gap: 16px; margin-top: 4px; }
 
 /* Dialog */
 dialog { width: min(480px, calc(100vw - 32px)); padding: 20px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--paper); color: var(--ink); }
