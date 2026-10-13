@@ -1,6 +1,6 @@
 // Sends Rimbak's notifications: a new event to everyone but its creator, a
-// reminder 24 hours before an event starts, and other people's answers to those
-// who have asked for them.
+// reminder 24 hours before an event starts, and each answer to the person who
+// made the event (unless they have turned that off).
 //
 // Deployed as the Supabase Edge Function "notify" with JWT verification on;
 // the database calls it (see post_notify in supabase/schema.sql).
@@ -91,7 +91,7 @@ Deno.serve(async () => {
     const [subs, profiles, answered] = await Promise.all([
       db.from('push_subscriptions').select('endpoint, user_id, p256dh, auth'),
       db.from('profiles').select('id, name, notify_responses'),
-      db.from('events').select('id, title, starts_at').in('id', answers.map((a) => a.event_id)),
+      db.from('events').select('id, title, starts_at, created_by').in('id', answers.map((a) => a.event_id)),
     ]);
     if (subs.error) throw subs.error;
     if (profiles.error) throw profiles.error;
@@ -150,8 +150,10 @@ Deno.serve(async () => {
         // One notification per person and event: a changed answer replaces the old one.
         tag: `${a.event_id}:${a.user_id}`,
       };
+      // Only the person who made the event hears about the answers to it.
+      if (ev.created_by === a.user_id || !wants.has(ev.created_by)) continue;
       for (const sub of subs.data) {
-        if (sub.user_id !== a.user_id && wants.has(sub.user_id)) jobs.push(push(sub, payload));
+        if (sub.user_id === ev.created_by) jobs.push(push(sub, payload));
       }
     }
 

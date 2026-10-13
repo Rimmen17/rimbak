@@ -232,8 +232,9 @@ create trigger events_announce
 -- Every ten minutes for the reminders (and any announcement the trigger missed).
 select cron.schedule('rimbak-notify', '*/10 * * * *', 'select public.post_notify()');
 
--- Notifications about other people's answers. Each person chooses; off to begin with.
-alter table public.profiles add column notify_responses boolean not null default false;
+-- Notifications about the answers to events you created. On to begin with;
+-- each person can turn it off.
+alter table public.profiles add column notify_responses boolean not null default true;
 
 create function public.set_response_notifications(p_on boolean)
 returns void

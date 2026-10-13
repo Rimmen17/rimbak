@@ -86,7 +86,7 @@ export async function deletePushSubscription(endpoint) {
   check(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint));
 }
 
-// Whether this person hears about other people's answers. Follows the person, not the device.
+// Whether this person hears about the answers to events they created. Follows the person, not the device.
 export async function setResponseNotifications(on) {
   check(await sb.rpc('set_response_notifications', { p_on: on }));
 }
