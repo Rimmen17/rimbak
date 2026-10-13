@@ -231,3 +231,62 @@ create trigger events_announce
 
 -- Every ten minutes for the reminders (and any announcement the trigger missed).
 select cron.schedule('rimbak-notify', '*/10 * * * *', 'select public.post_notify()');
+
+-- Notifications about other people's answers. Each person chooses; off to begin with.
+alter table public.profiles add column notify_responses boolean not null default false;
+
+create function public.set_response_notifications(p_on boolean)
+returns void
+language sql
+security definer
+set search_path = ''
+as $$
+  update public.profiles set notify_responses = coalesce(p_on, false) where id = auth.uid();
+$$;
+
+revoke execute on function public.set_response_notifications(boolean) from public, anon;
+grant execute on function public.set_response_notifications(boolean) to authenticated;
+
+-- Answers waiting to be sent out. Only the sending function touches this table.
+create table public.response_notices (
+  id bigint generated always as identity primary key,
+  event_id uuid not null references public.events on delete cascade,
+  user_id uuid not null references public.profiles on delete cascade,
+  status text not null,
+  note text not null default '',
+  created_at timestamptz not null default now()
+);
+
+alter table public.response_notices enable row level security;
+revoke all on public.response_notices from anon, authenticated;
+grant select, delete on public.response_notices to service_role;
+
+create function public.queue_response_notice()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and new.status = old.status and new.note = old.note then
+    return null;
+  end if;
+  -- Answers to events that have already started are not news.
+  if not exists (select 1 from public.events e where e.id = new.event_id and e.starts_at > now()) then
+    return null;
+  end if;
+  insert into public.response_notices (event_id, user_id, status, note)
+  values (new.event_id, new.user_id, new.status, new.note);
+  perform public.post_notify();
+  return null;
+exception when others then
+  -- An answer is never refused because the notification could not be queued.
+  return null;
+end;
+$$;
+
+revoke execute on function public.queue_response_notice() from public, anon, authenticated;
+
+create trigger responses_notice
+  after insert or update on public.responses
+  for each row execute function public.queue_response_notice();

@@ -15,8 +15,8 @@ function check({ data, error }) {
 }
 
 async function loadProfile(id) {
-  const p = check(await sb.from('profiles').select('id, name, is_admin').eq('id', id).single());
-  return { id: p.id, name: p.name, isAdmin: p.is_admin };
+  const p = check(await sb.from('profiles').select('id, name, is_admin, notify_responses').eq('id', id).single());
+  return { id: p.id, name: p.name, isAdmin: p.is_admin, notifyResponses: p.notify_responses };
 }
 
 export async function getSession() {
@@ -84,6 +84,11 @@ export async function savePushSubscription(sub) {
 
 export async function deletePushSubscription(endpoint) {
   check(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint));
+}
+
+// Whether this person hears about other people's answers. Follows the person, not the device.
+export async function setResponseNotifications(on) {
+  check(await sb.rpc('set_response_notifications', { p_on: on }));
 }
 
 export async function setResponse(eventId, status, note) {

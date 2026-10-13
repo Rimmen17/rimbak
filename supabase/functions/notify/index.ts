@@ -1,5 +1,6 @@
-// Sends Rimbak's notifications: a new event to everyone but its creator, and a
-// reminder 24 hours before an event starts.
+// Sends Rimbak's notifications: a new event to everyone but its creator, a
+// reminder 24 hours before an event starts, and other people's answers to those
+// who have asked for them.
 //
 // Deployed as the Supabase Edge Function "notify" with JWT verification on;
 // the database calls it (see post_notify in supabase/schema.sql).
@@ -13,6 +14,7 @@ import webpush from 'npm:web-push@3.6.7';
 const DAY = 24 * 60 * 60 * 1000;
 const HOUR = 60 * 60 * 1000;
 const REQUIRED = ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'];
+const VERB: Record<string, string> = { joining: 'kommer', late: 'bliver forsinket', not_joining: 'kommer ikke' };
 
 const when = (iso: string) =>
   new Intl.DateTimeFormat('da-DK', {
@@ -41,7 +43,7 @@ Deno.serve(async () => {
   const now = Date.now();
   const nowIso = new Date(now).toISOString();
   const soonIso = new Date(now + DAY).toISOString();
-  const result = { announced: 0, reminded: 0, sent: 0, removed: 0, failed: 0 };
+  const result = { announced: 0, reminded: 0, answers: 0, sent: 0, removed: 0, failed: 0 };
 
   try {
     // Claim the new events. Older unannounced ones are left alone, so a long
@@ -68,17 +70,35 @@ Deno.serve(async () => {
       .select('id, title, location, starts_at');
     if (due.error) throw due.error;
 
+    // Take the waiting answers off the queue. Only the latest per person and
+    // event is news, and nothing older than an hour.
+    const taken = await db.from('response_notices')
+      .delete()
+      .gt('id', 0)
+      .select('id, event_id, user_id, status, note, created_at');
+    if (taken.error) throw taken.error;
+    const latest = new Map<string, typeof taken.data[number]>();
+    for (const n of taken.data.sort((a, b) => a.id - b.id)) {
+      if (new Date(n.created_at).getTime() > now - HOUR) latest.set(`${n.event_id}:${n.user_id}`, n);
+    }
+    const answers = [...latest.values()];
+
     result.announced = fresh.data.length;
     result.reminded = due.data.length;
-    if (!fresh.data.length && !due.data.length) return json(result);
+    result.answers = answers.length;
+    if (!fresh.data.length && !due.data.length && !answers.length) return json(result);
 
-    const [subs, profiles] = await Promise.all([
+    const [subs, profiles, answered] = await Promise.all([
       db.from('push_subscriptions').select('endpoint, user_id, p256dh, auth'),
-      db.from('profiles').select('id, name'),
+      db.from('profiles').select('id, name, notify_responses'),
+      db.from('events').select('id, title, starts_at').in('id', answers.map((a) => a.event_id)),
     ]);
     if (subs.error) throw subs.error;
     if (profiles.error) throw profiles.error;
+    if (answered.error) throw answered.error;
     const names = new Map(profiles.data.map((p) => [p.id, p.name]));
+    const wants = new Set(profiles.data.filter((p) => p.notify_responses).map((p) => p.id));
+    const events = new Map(answered.data.map((e) => [e.id, e]));
 
     const jobs: Promise<void>[] = [];
     const push = (sub: typeof subs.data[number], payload: Record<string, string>) =>
@@ -118,6 +138,21 @@ Deno.serve(async () => {
         tag: ev.id,
       };
       for (const sub of subs.data) jobs.push(push(sub, payload));
+    }
+
+    for (const a of answers) {
+      const ev = events.get(a.event_id);
+      const who = names.get(a.user_id);
+      if (!ev || !who) continue;
+      const payload = {
+        title: `${who} ${VERB[a.status] ?? 'har svaret'}`,
+        body: `${ev.title}, ${when(ev.starts_at)}${a.note ? `\n${a.note}` : ''}`,
+        // One notification per person and event: a changed answer replaces the old one.
+        tag: `${a.event_id}:${a.user_id}`,
+      };
+      for (const sub of subs.data) {
+        if (sub.user_id !== a.user_id && wants.has(sub.user_id)) jobs.push(push(sub, payload));
+      }
     }
 
     await Promise.all(jobs);

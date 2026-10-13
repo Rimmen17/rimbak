@@ -97,6 +97,10 @@ async function renderPush() {
     : 'Vil du have notifikationer? Tryk på Del, vælg "Føj til hjemmeskærm", og åbn Rimbak derfra.';
   hint.hidden = !push.blocked() && !push.needsHomeScreen();
   $('push-row').hidden = toggle.hidden && hint.hidden;
+  if ($('push-answers')) {
+    $('push-answers-row').hidden = !on;
+    $('push-answers').checked = Boolean(state.user?.notifyResponses);
+  }
 }
 
 // A device that already has a subscription follows whoever is logged in on it.
@@ -197,6 +201,17 @@ $('tab-list').addEventListener('click', () => run(async () => {
 $('tab-month').addEventListener('click', () => run(async () => {
   state.view = 'month';
   await refresh();
+}));
+
+$('push-answers')?.addEventListener('change', (e) => run(async () => {
+  const on = e.target.checked;
+  try {
+    await backend.setResponseNotifications(on);
+    state.user.notifyResponses = on;
+  } catch (err) {
+    e.target.checked = !on;
+    throw err;
+  }
 }));
 
 $('new-event').addEventListener('click', () => openDialog(null));
