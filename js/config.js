@@ -6,5 +6,6 @@ export const config = {
   supabaseUrl: 'https://qyuinwidetufdyrjcjba.supabase.co',
   supabaseAnonKey: 'sb_publishable_eXWTr7mxGygwbdAX4SGRZg_yLmW_eC1',
   // Logins are by name. Supabase needs an email, so "Joan" signs in as joan@<loginDomain>.
+  // The accounts were created with this domain: changing it locks everyone out.
   loginDomain: 'familiekalender.example',
 };
